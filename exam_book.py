@@ -1,3 +1,5 @@
+import json
+
 class Employee:
     def __init__(self, name: str, position: str, phone: str, email: str):
         self.name = name
@@ -186,3 +188,158 @@ class SaleService:
                 result.append(sale)
         return result
 
+
+class DataManager:
+    def __init__(self, employee_service: EmployeeService, book_service: BookService, sale_service: SaleService):
+        self.employee_service = employee_service
+        self.book_service = book_service
+        self.sale_service = sale_service
+
+    def load_data(self, employee_file: str, book_file: str, sale_file: str):
+
+        with open(employee_file, 'r') as f:
+            employee_data = json.load(f)
+            for emp in employee_data:
+                self.employee_service.add_employee(emp['name'], emp['position'], emp['phone'], emp['email'])
+
+        with open(book_file, 'r') as f:
+            book_data = json.load(f)
+            for book in book_data:
+                self.book_service.add_book(book['title'], book['year'], book['author'], book['genre'], book['cost'], book['sale_price'])
+
+        with open(sale_file, 'r') as f:
+            sale_data = json.load(f)
+            for sale in sale_data:
+                self.sale_service.add_sale(sale['employee_name'], sale['book_title'], sale['sale_date'], sale['actual_sale_price'])
+
+    def save_data(self, employee_file: str, book_file: str, sale_file: str):
+
+        employees = self.employee_service.get_all_employees()
+        employee_dicts = []
+        for emp in employees:
+            employee_dicts.append({
+                'name': emp.name,
+                'position': emp.position,
+                'phone': emp.phone,
+                'email': emp.email
+            })
+        with open(employee_file, 'w') as f:
+            json.dump(employee_dicts, f)
+
+        books = self.book_service.get_all_books()
+        book_dicts = []
+        for book in books:
+            book_dicts.append({
+                'title': book.title,
+                'year': book.year,
+                'author': book.author,
+                'genre': book.genre,
+                'cost': book.cost,
+                'sale_price': book.sale_price
+            })
+        with open(book_file, 'w') as f:
+            json.dump(book_dicts, f)
+
+        sales = self.sale_service.sales
+        sale_dicts = []
+        for sale in sales:
+            sale_dicts.append({
+                'employee_name': sale.employee.name,
+                'book_title': sale.book.title,
+                'sale_date': sale.sale_date,
+                'actual_sale_price': sale.actual_sale_price
+            })
+        with open(sale_file, 'w') as f:
+            json.dump(sale_dicts, f)
+
+
+class Report:
+    def __init__(self, employee_service: EmployeeService, book_service: BookService, sale_service: SaleService):
+        self.employee_service = employee_service
+        self.book_service = book_service
+        self.sale_service = sale_service
+
+    def generate_sales_report(self, start_date: str, end_date: str):
+        sales = self.sale_service.get_sales_by_period(start_date, end_date)
+        report = []
+        for sale in sales:
+            report.append(f"{sale.sale_date}: {sale.employee.name} sold '{sale.book.title}' for {sale.actual_sale_price}")
+        return "\n".join(report)
+
+    def generate_employee_sales_report(self, employee_name: str):
+        report = []
+        for sale in self.sale_service.sales:
+            if sale.employee.name == employee_name:
+                report.append(f"{sale.sale_date}: '{sale.book.title}' sold for {sale.actual_sale_price}")
+        if not report:
+            return f"No sales found for employee '{employee_name}'"
+
+        return "\n".join([f"Sales report for {employee_name}:"] + report)
+
+    def generate_top_books_report(self, top_n: int):
+        book_sales = {}
+        for sale in self.sale_service.sales:
+            if sale.book.title not in book_sales:
+                book_sales[sale.book.title] = 0
+            book_sales[sale.book.title] += 1
+
+        sorted_books = []
+        for book, count in book_sales.items():
+            sorted_books.append((book, count))
+        sorted_books.sort(key=lambda item: item[1], reverse=True)
+
+        report = [f"Top {top_n} selling books:"]
+
+        for book, count in sorted_books[:top_n]:
+            report.append(f"{book}: {count} sales")
+        return "\n".join(report)
+
+
+employee_service = EmployeeService()
+book_service = BookService()
+sale_service = SaleService(employee_service, book_service)
+
+data_manager = DataManager(employee_service, book_service, sale_service)
+
+employee_data = [
+    {"name": "John", "position": "Manager", "phone": "111-111", "email": "john@gmail.com"},
+    {"name": "Bruce", "position": "Sales", "phone": "222-222", "email": "bruce@gmail.com"},
+    {"name": "Marta", "position": "Sales", "phone": "333-333", "email": "marta@gmail.com"}
+]
+
+book_data = [
+    {"title": "Taras Bulba", "year": 1835, "author": "N.V. Gogol", "genre": "Novel", "cost": 10.0, "sale_price": 15.0},
+    {"title": "War and Peace", "year": 1867, "author": "L.N. Tolstoy", "genre": "Novel", "cost": 20.0, "sale_price": 25.0},
+    {"title": "1984", "year": 1949, "author": "G. Orwell", "genre": "Fantasy", "cost": 18.5, "sale_price": 19.5}
+]
+
+sale_data = [
+    {"employee_name": "John", "book_title": "1984", "sale_date": "2024-08-30", "actual_sale_price": 19.0},
+    {"employee_name": "John", "book_title": "1984", "sale_date": "2024-08-31", "actual_sale_price": 19.5},
+    {"employee_name": "Bruce", "book_title": "Taras Bulba", "sale_date": "2024-08-29", "actual_sale_price": 14.0},
+    {"employee_name": "Marta", "book_title": "War and Peace", "sale_date": "2024-08-29", "actual_sale_price": 23.4}
+]
+
+with open('employees.json', 'w') as f:
+    json.dump(employee_data, f)
+
+with open('books.json', 'w') as f:
+    json.dump(book_data, f)
+
+with open('sales.json', 'w') as f:
+    json.dump(sale_data, f)
+
+data_manager.load_data('employees.json', 'books.json', 'sales.json')
+
+report = Report(employee_service, book_service, sale_service)
+
+print("Sales Report from 2024-08-30 to 2024-08-31:")
+print(report.generate_sales_report("2024-08-30", "2024-08-31"))
+
+print("\nEmployee Sales Report for John:")
+print(report.generate_employee_sales_report("John"))
+
+print("\nTop 1 Selling Books Report:")
+print(report.generate_top_books_report(1))
+
+data_manager.save_data('employees.json', 'books.json', 'sales.json')
